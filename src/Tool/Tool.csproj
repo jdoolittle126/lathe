@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <PackAsTool>true</PackAsTool>
-    <PackageId>Lathe.Tool</PackageId>
+    <PackageId>lathe</PackageId>
     <ToolCommandName>lathe</ToolCommandName>
     <Authors>Jonathan Doolittle</Authors>
     <Description>CLI and local web workbench for stitching and tailing JSON log streams.</Description>
