@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 
 namespace Lathe.Web;
 
@@ -22,7 +21,6 @@ public static class LatheWebApplication
         });
 
         builder.WebHost.UseUrls(options.Url);
-        builder.WebHost.UseStaticWebAssets();
         builder.Logging.ClearProviders();
 
         builder.Services.AddRazorComponents()
@@ -38,9 +36,9 @@ public static class LatheWebApplication
         }
 
         app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+        app.UseStaticFiles();
         app.UseAntiforgery();
 
-        app.MapStaticAssets();
         app.MapRazorComponents<App>()
             .AddInteractiveServerRenderMode();
 
