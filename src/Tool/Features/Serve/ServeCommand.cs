@@ -23,32 +23,37 @@ public sealed class ServeCommand(SourceResolver sourceResolver, TailService tail
                 return -1;
             }
 
-            if (settings.Files.Length == 0 && settings.Globs.Length == 0 && settings.RollingDirectories.Length == 0)
+            using var commandCancellation = ConsoleCancellation.Create(cancellationToken);
+            var url = $"http://localhost:{GetOpenPort()}";
+            var session = new LatheSessionState([], [], DateTimeOffset.UtcNow, settings.Count);
+            var controller = new ServeSessionController(
+                sourceResolver,
+                tailService,
+                session,
+                Environment.CurrentDirectory,
+                settings.Count,
+                commandCancellation.Token);
+
+            if (settings.Files.Length > 0 || settings.Globs.Length > 0 || settings.RollingDirectories.Length > 0)
             {
-                AnsiConsole.MarkupLine("[red]At least one input is required. Use `--file`, `--glob`, or `--rolling`.[/]");
-                return -1;
+                var addErrors = await controller.AddInputsAsync(settings.Files, settings.Globs, settings.RollingDirectories, commandCancellation.Token);
+
+                if (addErrors.Count > 0)
+                {
+                    foreach (var error in addErrors)
+                    {
+                        AnsiConsole.MarkupLine($"[red]{Markup.Escape(error)}[/]");
+                    }
+
+                    return -1;
+                }
             }
 
-            var request = new ResolveSourcesRequest(
-                Environment.CurrentDirectory,
-                settings.Files,
-                settings.Globs,
-                settings.RollingDirectories);
-
-            var sources = sourceResolver.Resolve(request);
-
-            using var commandCancellation = ConsoleCancellation.Create(cancellationToken);
-            var result = await tailService.StartAsync(new TailRequest(sources, settings.Count, true), commandCancellation.Token);
-            var url = $"http://localhost:{GetOpenPort()}";
-            var session = new LatheSessionState(sources, result.InitialEvents, DateTimeOffset.UtcNow, settings.Count);
-
             AnsiConsole.MarkupLine($"[green]Lathe is listening on[/] [link={url}]{url}[/]");
-            AnsiConsole.MarkupLine($"[grey]Loaded {result.InitialEvents.Count} events from {sources.Count} source(s). Following live updates. Press Ctrl+C to stop.[/]");
+            AnsiConsole.MarkupLine($"[grey]Loaded {session.Events.Count} events from {session.Sources.Count} source(s). Add more in the UI and press Ctrl+C to stop.[/]");
 
-            await using var app = LatheWebApplication.Build([], new LatheWebApplicationOptions(url, session));
+            await using var app = LatheWebApplication.Build([], new LatheWebApplicationOptions(url, session, controller));
             await app.StartAsync(commandCancellation.Token);
-
-            var livePump = PumpLiveEventsAsync(result.LiveEvents, session, commandCancellation.Token);
 
             try
             {
@@ -57,7 +62,6 @@ public sealed class ServeCommand(SourceResolver sourceResolver, TailService tail
             finally
             {
                 await app.StopAsync(CancellationToken.None);
-                await livePump;
             }
 
             return 0;
@@ -84,20 +88,4 @@ public sealed class ServeCommand(SourceResolver sourceResolver, TailService tail
         return ((IPEndPoint)listener.LocalEndpoint).Port;
     }
 
-    private static async Task PumpLiveEventsAsync(
-        IAsyncEnumerable<Lathe.Core.Domain.LogEventRecord> liveEvents,
-        LatheSessionState session,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await foreach (var logEvent in liveEvents.WithCancellation(cancellationToken))
-            {
-                session.Append(logEvent);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
 }

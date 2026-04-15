@@ -1,0 +1,73 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version to publish
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: 10.0.x
+
+jobs:
+  publish:
+    name: Pack And Publish Tool
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Validate NuGet profile name
+        shell: bash
+        run: |
+          if [ -z "${{ vars.NUGET_USER }}" ]; then
+            echo "Set the repository variable NUGET_USER to your nuget.org profile name before publishing." >&2
+            exit 1
+          fi
+
+      - name: Compute version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore Lathe.slnx
+
+      - name: Build
+        run: dotnet build Lathe.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=true -p:Version=${{ env.VERSION }}
+
+      - name: Test
+        run: dotnet test tests/Tests/Tests.csproj -c Release --no-build
+
+      - name: Pack tool
+        run: dotnet pack src/Tool/Tool.csproj -c Release --no-build -o artifacts -p:ContinuousIntegrationBuild=true -p:Version=${{ env.VERSION }}
+
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Publish to NuGet
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate

@@ -9,7 +9,7 @@ using System.Reflection;
 
 namespace Lathe.Web;
 
-public sealed record LatheWebApplicationOptions(string Url, LatheSessionState Session);
+public sealed record LatheWebApplicationOptions(string Url, LatheSessionState Session, ILatheSessionController? SessionController = null);
 
 public static class LatheWebApplication
 {
@@ -28,6 +28,7 @@ public static class LatheWebApplication
         builder.Services.AddRazorComponents()
             .AddInteractiveServerComponents();
         builder.Services.AddSingleton(options.Session);
+        builder.Services.AddSingleton(options.SessionController ?? DisabledLatheSessionController.Instance);
 
         var app = builder.Build();
 

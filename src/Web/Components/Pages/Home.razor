@@ -1,15 +1,18 @@
-﻿@page "/"
+@page "/"
 @implements IDisposable
 @using System.Globalization
 @using Lathe.Core.Domain
-@inject Lathe.Web.Features.Session.LatheSessionState Session
+@using Lathe.Web.Features.Session
+@inject LatheSessionState Session
+@inject ILatheSessionController SessionController
 
 <PageTitle>Lathe</PageTitle>
 
 <div class="page">
-    @{ 
+    @{
         var events = Session.Events;
-        var filteredEvents = Filter(events).ToList();
+        var levelCounts = CountLevels(FilterWithoutLevelToggles(events));
+        var filteredEvents = ApplyLevelToggles(FilterWithoutLevelToggles(events)).ToList();
         var selectedEvent = GetSelectedEvent(filteredEvents);
     }
 
@@ -35,14 +38,54 @@
             <p>@Session.LoadError</p>
         </section>
     }
-    else if (Session.Sources.Count == 0)
+
+    <section class="source-entry-strip">
+        <div class="source-entry-copy">
+            <p class="eyebrow">Add Source</p>
+            <strong>Bring more logs onto the bench without restarting `serve`.</strong>
+        </div>
+
+        <label class="filter-field">
+            <span>Type</span>
+            <select @bind="_sourceKind">
+                <option value="File">File</option>
+                <option value="Glob">Glob</option>
+                <option value="Rolling">Rolling directory</option>
+            </select>
+        </label>
+
+        <label class="filter-field source-entry-path">
+            <span>Path</span>
+            <input @bind="_sourceInput" placeholder="sample-logs/web-01.json" />
+        </label>
+
+        <div class="filter-actions source-entry-actions">
+            <button type="button" class="filter-button primary" @onclick="AddSourceAsync" disabled="@_isAddingSource">
+                @(_isAddingSource ? "Adding..." : "Add source")
+            </button>
+        </div>
+    </section>
+
+    @if (_sourceErrors.Count > 0)
+    {
+        <section class="status-panel error compact-status">
+            <h2>Could not add source</h2>
+            @foreach (var error in _sourceErrors)
+            {
+                <p>@error</p>
+            }
+        </section>
+    }
+
+    @if (Session.Sources.Count == 0)
     {
         <section class="status-panel">
             <h2>No sources loaded</h2>
-            <p>Run <code>lathe serve --file path/to/log.json</code> to bring some logs to the bench.</p>
+            <p>Start with <code>lathe serve</code> and add a file, glob, or rolling directory here in the UI.</p>
         </section>
     }
-    else
+
+    @if (Session.Sources.Count > 0)
     {
         <section class="source-strip">
             @foreach (var source in Session.Sources)
@@ -62,6 +105,16 @@
             </label>
 
             <label class="filter-field">
+                <span>Property</span>
+                <input @bind="_draftPropertyName" placeholder="MachineName" />
+            </label>
+
+            <label class="filter-field">
+                <span>Value</span>
+                <input @bind="_draftPropertyValue" placeholder="web-01" />
+            </label>
+
+            <label class="filter-field">
                 <span>Source</span>
                 <select @bind="_draftSource">
                     <option value="">All sources</option>
@@ -73,22 +126,12 @@
             </label>
 
             <label class="filter-field">
-                <span>Level</span>
-                <select @bind="_draftLevel">
-                    <option value="">All levels</option>
-                    <option value="Verbose">Verbose</option>
-                    <option value="Debug">Debug</option>
-                    <option value="Information">Information</option>
-                    <option value="Warning">Warning</option>
-                    <option value="Error">Error</option>
-                    <option value="Fatal">Fatal</option>
-                </select>
+                <span>Filters</span>
+                <div class="filter-actions">
+                    <button type="button" class="filter-button primary" @onclick="ApplyFilters">Apply</button>
+                    <button type="button" class="filter-button" @onclick="ClearFilters">Clear</button>
+                </div>
             </label>
-
-            <div class="filter-actions">
-                <button type="button" class="filter-button primary" @onclick="ApplyFilters">Apply</button>
-                <button type="button" class="filter-button" @onclick="ClearFilters">Clear</button>
-            </div>
         </section>
 
         @if (events.Count == 0)
@@ -101,22 +144,20 @@
         else
         {
             <section class="metric-strip">
-                <article class="metric-card">
+                <article class="metric-card shown-card">
                     <span>Shown</span>
                     <strong>@filteredEvents.Count</strong>
                 </article>
-                <article class="metric-card">
-                    <span>Errors</span>
-                    <strong>@CountLevel(filteredEvents, "Error", "Fatal")</strong>
-                </article>
-                <article class="metric-card">
-                    <span>Warnings</span>
-                    <strong>@CountLevel(filteredEvents, "Warning")</strong>
-                </article>
-                <article class="metric-card">
-                    <span>Info</span>
-                    <strong>@CountLevel(filteredEvents, "Information")</strong>
-                </article>
+
+                @foreach (var level in AllLevels)
+                {
+                    <button type="button"
+                            class="metric-card level-toggle @(IsLevelVisible(level) ? "active" : "muted") @GetLevelClass(level)"
+                            @onclick="() => ToggleLevel(level)">
+                        <span>@level</span>
+                        <strong>@levelCounts[level]</strong>
+                    </button>
+                }
             </section>
 
             @if (filteredEvents.Count == 0)
@@ -176,6 +217,32 @@
                                     <pre>@selectedEvent.SourcePath</pre>
                                 </div>
 
+                                @if (selectedEvent.Properties.Count > 0)
+                                {
+                                    <div class="event-block">
+                                        <h3>Properties</h3>
+                                        <div class="property-list">
+                                            @foreach (var property in selectedEvent.Properties.OrderBy(property => property.Key, StringComparer.OrdinalIgnoreCase))
+                                            {
+                                                <div class="property-row">
+                                                    <div class="property-header-row">
+                                                        <span class="property-name">@property.Key</span>
+                                                        <button type="button"
+                                                                class="property-filter-button"
+                                                                title="Filter to this property value"
+                                                                @onclick="() => ApplyPropertyFilter(property.Key, property.Value)">
+                                                            <svg viewBox="0 0 16 16" aria-hidden="true">
+                                                                <path d="M2 3h12l-4.75 5.1v3.3l-2.5 1.6V8.1z"></path>
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <pre>@property.Value</pre>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
                                 @if (!string.IsNullOrWhiteSpace(selectedEvent.Exception))
                                 {
                                     <div class="event-block">
@@ -199,12 +266,20 @@
 
 @code {
     private string _draftText = string.Empty;
+    private string _draftPropertyName = string.Empty;
+    private string _draftPropertyValue = string.Empty;
     private string _draftSource = string.Empty;
-    private string _draftLevel = string.Empty;
     private string _appliedText = string.Empty;
+    private string _appliedPropertyName = string.Empty;
+    private string _appliedPropertyValue = string.Empty;
     private string _appliedSource = string.Empty;
-    private string _appliedLevel = string.Empty;
+    private readonly HashSet<string> _hiddenLevels = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<string> _sourceErrors = [];
+    private string _sourceKind = "File";
+    private string _sourceInput = string.Empty;
+    private bool _isAddingSource;
     private LogEventRecord? _selectedEvent;
+    private static readonly string[] AllLevels = ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"];
 
     protected override void OnInitialized() => Session.Changed += OnSessionChanged;
 
@@ -215,22 +290,76 @@
     private void ApplyFilters()
     {
         _appliedText = _draftText.Trim();
+        _appliedPropertyName = _draftPropertyName.Trim();
+        _appliedPropertyValue = _draftPropertyValue.Trim();
         _appliedSource = _draftSource;
-        _appliedLevel = _draftLevel;
     }
 
     private void ClearFilters()
     {
         _draftText = string.Empty;
+        _draftPropertyName = string.Empty;
+        _draftPropertyValue = string.Empty;
         _draftSource = string.Empty;
-        _draftLevel = string.Empty;
         _appliedText = string.Empty;
+        _appliedPropertyName = string.Empty;
+        _appliedPropertyValue = string.Empty;
         _appliedSource = string.Empty;
-        _appliedLevel = string.Empty;
+        _hiddenLevels.Clear();
         _selectedEvent = null;
     }
 
+    private void ApplyPropertyFilter(string name, string value)
+    {
+        _draftPropertyName = name;
+        _draftPropertyValue = value;
+        _appliedPropertyName = name;
+        _appliedPropertyValue = value;
+        _selectedEvent = null;
+    }
+
+    private async Task AddSourceAsync()
+    {
+        _sourceErrors = [];
+
+        if (string.IsNullOrWhiteSpace(_sourceInput))
+        {
+            _sourceErrors = ["Give Lathe a path or pattern first."];
+            return;
+        }
+
+        _isAddingSource = true;
+
+        try
+        {
+            var value = _sourceInput.Trim();
+            _sourceErrors = _sourceKind switch
+            {
+                "Glob" => await SessionController.AddInputsAsync([], [value], [], CancellationToken.None),
+                "Rolling" => await SessionController.AddInputsAsync([], [], [value], CancellationToken.None),
+                _ => await SessionController.AddInputsAsync([value], [], [], CancellationToken.None),
+            };
+
+            if (_sourceErrors.Count == 0)
+            {
+                _sourceInput = string.Empty;
+            }
+        }
+        finally
+        {
+            _isAddingSource = false;
+        }
+    }
+
     private void SelectEvent(LogEventRecord logEvent) => _selectedEvent = logEvent;
+
+    private void ToggleLevel(string level)
+    {
+        if (!_hiddenLevels.Add(level))
+        {
+            _hiddenLevels.Remove(level);
+        }
+    }
 
     private LogEventRecord? GetSelectedEvent(IReadOnlyList<LogEventRecord> events)
     {
@@ -249,7 +378,7 @@
         return _selectedEvent;
     }
 
-    private IEnumerable<LogEventRecord> Filter(IEnumerable<LogEventRecord> events)
+    private IEnumerable<LogEventRecord> FilterWithoutLevelToggles(IEnumerable<LogEventRecord> events)
     {
         var filtered = events;
 
@@ -258,27 +387,68 @@
             filtered = filtered.Where(logEvent => string.Equals(logEvent.SourceAlias, _appliedSource, StringComparison.OrdinalIgnoreCase));
         }
 
-        if (!string.IsNullOrWhiteSpace(_appliedLevel))
-        {
-            filtered = filtered.Where(logEvent => string.Equals(logEvent.Level, _appliedLevel, StringComparison.OrdinalIgnoreCase));
-        }
-
         if (string.IsNullOrWhiteSpace(_appliedText))
         {
-            return filtered;
+            return FilterByProperty(filtered);
         }
 
-        return filtered.Where(logEvent =>
+        return FilterByProperty(filtered.Where(logEvent =>
             Contains(logEvent.Message, _appliedText) ||
             Contains(logEvent.Exception, _appliedText) ||
-            Contains(logEvent.Raw, _appliedText));
+            Contains(logEvent.Raw, _appliedText)));
+    }
+
+    private IEnumerable<LogEventRecord> ApplyLevelToggles(IEnumerable<LogEventRecord> events) =>
+        _hiddenLevels.Count == 0
+            ? events
+            : events.Where(logEvent => !_hiddenLevels.Contains(logEvent.Level));
+
+    private IEnumerable<LogEventRecord> FilterByProperty(IEnumerable<LogEventRecord> events)
+    {
+        if (string.IsNullOrWhiteSpace(_appliedPropertyName) && string.IsNullOrWhiteSpace(_appliedPropertyValue))
+        {
+            return events;
+        }
+
+        return events.Where(logEvent => MatchesProperty(logEvent.Properties, _appliedPropertyName, _appliedPropertyValue));
     }
 
     private static bool Contains(string? value, string text) =>
         value?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
 
-    private static int CountLevel(IEnumerable<LogEventRecord> events, params string[] levels) =>
-        events.Count(logEvent => levels.Contains(logEvent.Level, StringComparer.OrdinalIgnoreCase));
+    private static bool MatchesProperty(IReadOnlyDictionary<string, string> properties, string name, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            if (!properties.TryGetValue(name, out var propertyValue))
+            {
+                return false;
+            }
+
+            return string.IsNullOrWhiteSpace(value) || Contains(propertyValue, value);
+        }
+
+        return properties.Values.Any(propertyValue => Contains(propertyValue, value));
+    }
+
+    private static IReadOnlyDictionary<string, int> CountLevels(IEnumerable<LogEventRecord> events)
+    {
+        var counts = AllLevels.ToDictionary(level => level, _ => 0, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var logEvent in events)
+        {
+            if (!counts.ContainsKey(logEvent.Level))
+            {
+                continue;
+            }
+
+            counts[logEvent.Level]++;
+        }
+
+        return counts;
+    }
+
+    private bool IsLevelVisible(string level) => !_hiddenLevels.Contains(level);
 
     private static string GetLevelClass(string level) => level.ToLowerInvariant() switch
     {

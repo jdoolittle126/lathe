@@ -7,4 +7,7 @@ public sealed record LogEventRecord(
     string? Exception,
     string SourceAlias,
     string SourcePath,
-    string Raw);
+    string Raw)
+{
+    public IReadOnlyDictionary<string, string> Properties { get; init; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+}
