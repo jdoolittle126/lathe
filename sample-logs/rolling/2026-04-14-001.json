@@ -1,0 +1,3 @@
+{"@t":"2026-04-14T13:59:58.000Z","@l":"Information","@m":"Rolling writer warmed up","MachineName":"worker-rolling","BatchId":"batch-17","SourceContext":"Lathe.Sample.Rolling"}
+{"@t":"2026-04-14T14:00:00.000Z","@l":"Information","@m":"Processing batch 17","MachineName":"worker-rolling","BatchId":"batch-17","SourceContext":"Lathe.Sample.Rolling"}
+{"@t":"2026-04-14T14:00:01.000Z","@l":"Warning","@m":"Batch 17 nearing memory threshold","MachineName":"worker-rolling","BatchId":"batch-17","WorkingSetMb":912,"SourceContext":"Lathe.Sample.Rolling"}

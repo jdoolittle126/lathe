@@ -31,7 +31,7 @@ internal static class Program
                 .WithDescription("Show recent JSON log events from one or more sources.");
 
             config.AddCommand<ServeCommand>("serve")
-                .WithDescription("Host the local Lathe web UI.");
+                .WithDescription("Host the local Lathe web UI for one or more sources.");
         });
 
         return await app.RunAsync(args);

@@ -1,5 +1,6 @@
 using Lathe.Core.Features.Sources;
 using Lathe.Core.Features.Tailing;
+using Lathe.Tool.Infrastructure;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -73,34 +74,6 @@ public sealed class TailCommand(SourceResolver sourceResolver, TailService tailS
         catch (OperationCanceledException)
         {
             return 0;
-        }
-    }
-
-    private sealed class ConsoleCancellation : IDisposable
-    {
-        private readonly CancellationTokenSource _cts;
-
-        private ConsoleCancellation(CancellationTokenSource cts)
-        {
-            _cts = cts;
-            Console.CancelKeyPress += OnCancelKeyPress;
-        }
-
-        public CancellationToken Token => _cts.Token;
-
-        public static ConsoleCancellation Create(CancellationToken cancellationToken) =>
-            new(CancellationTokenSource.CreateLinkedTokenSource(cancellationToken));
-
-        public void Dispose()
-        {
-            Console.CancelKeyPress -= OnCancelKeyPress;
-            _cts.Dispose();
-        }
-
-        private void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-        {
-            e.Cancel = true;
-            _cts.Cancel();
         }
     }
 }

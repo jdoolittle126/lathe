@@ -1,7 +1,293 @@
 ﻿@page "/"
+@implements IDisposable
+@using System.Globalization
+@using Lathe.Core.Domain
+@inject Lathe.Web.Features.Session.LatheSessionState Session
 
 <PageTitle>Lathe</PageTitle>
 
-<h1>Lathe</h1>
+<div class="page">
+    @{ 
+        var events = Session.Events;
+        var filteredEvents = Filter(events).ToList();
+        var selectedEvent = GetSelectedEvent(filteredEvents);
+    }
 
-<p>WIP, coming sooooooon!</p>
+    <header class="masthead">
+        <div>
+            <p class="eyebrow">Local Log Workbench</p>
+            <h1>Lathe</h1>
+        </div>
+
+        <div class="snapshot-meta">
+            <span>@Session.Sources.Count source(s)</span>
+            <span>@events.Count event(s)</span>
+            <span>Loaded @Session.LoadedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
+            <span>Updated @Session.LastUpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
+            <span class="live-pill">Live</span>
+        </div>
+    </header>
+
+    @if (Session.LoadError is not null)
+    {
+        <section class="status-panel error">
+            <h2>Session failed</h2>
+            <p>@Session.LoadError</p>
+        </section>
+    }
+    else if (Session.Sources.Count == 0)
+    {
+        <section class="status-panel">
+            <h2>No sources loaded</h2>
+            <p>Run <code>lathe serve --file path/to/log.json</code> to bring some logs to the bench.</p>
+        </section>
+    }
+    else
+    {
+        <section class="source-strip">
+            @foreach (var source in Session.Sources)
+            {
+                <article class="source-card">
+                    <span class="source-kind">@source.Kind</span>
+                    <strong>@source.DisplayName</strong>
+                    <span class="source-path">@source.Path</span>
+                </article>
+            }
+        </section>
+
+        <section class="filter-strip">
+            <label class="filter-field">
+                <span>Text</span>
+                <input @bind="_draftText" placeholder="message, exception, or raw" />
+            </label>
+
+            <label class="filter-field">
+                <span>Source</span>
+                <select @bind="_draftSource">
+                    <option value="">All sources</option>
+                    @foreach (var source in Session.Sources)
+                    {
+                        <option value="@source.DisplayName">@source.DisplayName</option>
+                    }
+                </select>
+            </label>
+
+            <label class="filter-field">
+                <span>Level</span>
+                <select @bind="_draftLevel">
+                    <option value="">All levels</option>
+                    <option value="Verbose">Verbose</option>
+                    <option value="Debug">Debug</option>
+                    <option value="Information">Information</option>
+                    <option value="Warning">Warning</option>
+                    <option value="Error">Error</option>
+                    <option value="Fatal">Fatal</option>
+                </select>
+            </label>
+
+            <div class="filter-actions">
+                <button type="button" class="filter-button primary" @onclick="ApplyFilters">Apply</button>
+                <button type="button" class="filter-button" @onclick="ClearFilters">Clear</button>
+            </div>
+        </section>
+
+        @if (events.Count == 0)
+        {
+            <section class="status-panel">
+                <h2>No events turned up yet</h2>
+                <p>The sources are loaded, but the current snapshot is empty.</p>
+            </section>
+        }
+        else
+        {
+            <section class="metric-strip">
+                <article class="metric-card">
+                    <span>Shown</span>
+                    <strong>@filteredEvents.Count</strong>
+                </article>
+                <article class="metric-card">
+                    <span>Errors</span>
+                    <strong>@CountLevel(filteredEvents, "Error", "Fatal")</strong>
+                </article>
+                <article class="metric-card">
+                    <span>Warnings</span>
+                    <strong>@CountLevel(filteredEvents, "Warning")</strong>
+                </article>
+                <article class="metric-card">
+                    <span>Info</span>
+                    <strong>@CountLevel(filteredEvents, "Information")</strong>
+                </article>
+            </section>
+
+            @if (filteredEvents.Count == 0)
+            {
+                <section class="status-panel">
+                    <h2>No events match the current filters</h2>
+                    <p>Try clearing a filter or broadening the query.</p>
+                </section>
+            }
+            else
+            {
+                <section class="timeline-layout">
+                    <section class="timeline-shell">
+                        <div class="timeline-header">
+                            <span>Timestamp</span>
+                            <span>Level</span>
+                            <span>Source</span>
+                            <span>Message</span>
+                        </div>
+
+                        @foreach (var logEvent in filteredEvents)
+                        {
+                            <button type="button"
+                                    class="timeline-event @(ReferenceEquals(logEvent, selectedEvent) ? "selected" : null)"
+                                    @onclick="() => SelectEvent(logEvent)">
+                                <span class="timestamp">@logEvent.Timestamp.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)</span>
+                                <span class="level @GetLevelClass(logEvent.Level)">@logEvent.Level</span>
+                                <span class="source">@logEvent.SourceAlias</span>
+                                <span class="message">@logEvent.Message</span>
+                            </button>
+                        }
+                    </section>
+
+                    <aside class="inspector-shell">
+                        @if (selectedEvent is null)
+                        {
+                            <section class="status-panel inspector-empty">
+                                <h2>No event selected</h2>
+                                <p>Pick a row from the timeline to inspect it.</p>
+                            </section>
+                        }
+                        else
+                        {
+                            <section class="inspector-panel">
+                                <header class="inspector-header">
+                                    <span class="level @GetLevelClass(selectedEvent.Level)">@selectedEvent.Level</span>
+                                    <strong>@selectedEvent.Message</strong>
+                                </header>
+
+                                <div class="event-block">
+                                    <h3>Timestamp</h3>
+                                    <pre>@selectedEvent.Timestamp.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture)</pre>
+                                </div>
+
+                                <div class="event-block">
+                                    <h3>Source</h3>
+                                    <pre>@selectedEvent.SourcePath</pre>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(selectedEvent.Exception))
+                                {
+                                    <div class="event-block">
+                                        <h3>Exception</h3>
+                                        <pre>@selectedEvent.Exception</pre>
+                                    </div>
+                                }
+
+                                <div class="event-block">
+                                    <h3>Raw</h3>
+                                    <pre>@selectedEvent.Raw</pre>
+                                </div>
+                            </section>
+                        }
+                    </aside>
+                </section>
+            }
+        }
+    }
+</div>
+
+@code {
+    private string _draftText = string.Empty;
+    private string _draftSource = string.Empty;
+    private string _draftLevel = string.Empty;
+    private string _appliedText = string.Empty;
+    private string _appliedSource = string.Empty;
+    private string _appliedLevel = string.Empty;
+    private LogEventRecord? _selectedEvent;
+
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    private void OnSessionChanged() => _ = InvokeAsync(StateHasChanged);
+
+    private void ApplyFilters()
+    {
+        _appliedText = _draftText.Trim();
+        _appliedSource = _draftSource;
+        _appliedLevel = _draftLevel;
+    }
+
+    private void ClearFilters()
+    {
+        _draftText = string.Empty;
+        _draftSource = string.Empty;
+        _draftLevel = string.Empty;
+        _appliedText = string.Empty;
+        _appliedSource = string.Empty;
+        _appliedLevel = string.Empty;
+        _selectedEvent = null;
+    }
+
+    private void SelectEvent(LogEventRecord logEvent) => _selectedEvent = logEvent;
+
+    private LogEventRecord? GetSelectedEvent(IReadOnlyList<LogEventRecord> events)
+    {
+        if (events.Count == 0)
+        {
+            _selectedEvent = null;
+            return null;
+        }
+
+        if (_selectedEvent is not null && events.Contains(_selectedEvent))
+        {
+            return _selectedEvent;
+        }
+
+        _selectedEvent = events[^1];
+        return _selectedEvent;
+    }
+
+    private IEnumerable<LogEventRecord> Filter(IEnumerable<LogEventRecord> events)
+    {
+        var filtered = events;
+
+        if (!string.IsNullOrWhiteSpace(_appliedSource))
+        {
+            filtered = filtered.Where(logEvent => string.Equals(logEvent.SourceAlias, _appliedSource, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(_appliedLevel))
+        {
+            filtered = filtered.Where(logEvent => string.Equals(logEvent.Level, _appliedLevel, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (string.IsNullOrWhiteSpace(_appliedText))
+        {
+            return filtered;
+        }
+
+        return filtered.Where(logEvent =>
+            Contains(logEvent.Message, _appliedText) ||
+            Contains(logEvent.Exception, _appliedText) ||
+            Contains(logEvent.Raw, _appliedText));
+    }
+
+    private static bool Contains(string? value, string text) =>
+        value?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
+
+    private static int CountLevel(IEnumerable<LogEventRecord> events, params string[] levels) =>
+        events.Count(logEvent => levels.Contains(logEvent.Level, StringComparer.OrdinalIgnoreCase));
+
+    private static string GetLevelClass(string level) => level.ToLowerInvariant() switch
+    {
+        "verbose" => "verbose",
+        "debug" => "debug",
+        "information" => "information",
+        "warning" => "warning",
+        "error" => "error",
+        "fatal" => "fatal",
+        _ => "information",
+    };
+}
