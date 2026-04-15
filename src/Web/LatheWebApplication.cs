@@ -14,10 +14,14 @@ public static class LatheWebApplication
 {
     public static WebApplication Build(string[] args, LatheWebApplicationOptions options)
     {
+        var contentRoot = AppContext.BaseDirectory;
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
             ApplicationName = typeof(LatheWebApplication).Assembly.GetName().Name,
+            ContentRootPath = contentRoot,
+            WebRootPath = Path.Combine(contentRoot, "wwwroot"),
         });
 
         builder.WebHost.UseUrls(options.Url);
