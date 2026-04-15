@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Lathe.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>Lathe.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+</Project>
