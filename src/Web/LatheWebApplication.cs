@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Lathe.Web;
 
@@ -14,7 +15,8 @@ public static class LatheWebApplication
 {
     public static WebApplication Build(string[] args, LatheWebApplicationOptions options)
     {
-        var contentRoot = AppContext.BaseDirectory;
+        var contentRoot = Path.GetDirectoryName(typeof(LatheWebApplication).Assembly.Location)
+            ?? AppContext.BaseDirectory;
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
