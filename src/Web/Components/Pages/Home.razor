@@ -8,12 +8,16 @@
 
 <PageTitle>Lathe</PageTitle>
 
-<div class="page">
+<div class="page @GetPageClass()">
     @{
         var events = Session.Events;
         var levelCounts = CountLevels(FilterWithoutLevelToggles(events));
-        var filteredEvents = ApplyLevelToggles(FilterWithoutLevelToggles(events)).ToList();
+        var filteredEvents = ApplyLevelToggles(FilterWithoutLevelToggles(events))
+            .OrderByDescending(logEvent => logEvent.Timestamp)
+            .ToList();
         var selectedEvent = GetSelectedEvent(filteredEvents);
+        var showControls = !_controlsCollapsed || Session.Sources.Count == 0;
+        var activeFilterSummary = GetActiveFilterSummary();
     }
 
     <header class="masthead">
@@ -22,12 +26,18 @@
             <h1>Lathe</h1>
         </div>
 
-        <div class="snapshot-meta">
-            <span>@Session.Sources.Count source(s)</span>
-            <span>@events.Count event(s)</span>
-            <span>Loaded @Session.LoadedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
-            <span>Updated @Session.LastUpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
-            <span class="live-pill">Live</span>
+        <div class="masthead-actions">
+            <div class="snapshot-meta">
+                <span>@Session.Sources.Count source(s)</span>
+                <span>@events.Count event(s)</span>
+                <span>Loaded @Session.LoadedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
+                <span>Updated @Session.LastUpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
+                <span class="live-pill">Live</span>
+            </div>
+
+            <button type="button" class="filter-button" @onclick="ToggleControls">
+                @(_controlsCollapsed ? "Show controls" : "Hide controls")
+            </button>
         </div>
     </header>
 
@@ -39,32 +49,16 @@
         </section>
     }
 
-    <section class="source-entry-strip">
-        <div class="source-entry-copy">
-            <p class="eyebrow">Add Source</p>
-            <strong>Bring more logs onto the bench without restarting `serve`.</strong>
-        </div>
-
-        <label class="filter-field">
-            <span>Type</span>
-            <select @bind="_sourceKind">
-                <option value="File">File</option>
-                <option value="Glob">Glob</option>
-                <option value="Rolling">Rolling directory</option>
-            </select>
-        </label>
-
-        <label class="filter-field source-entry-path">
-            <span>Path</span>
-            <input @bind="_sourceInput" placeholder="sample-logs/web-01.json" />
-        </label>
-
-        <div class="filter-actions source-entry-actions">
-            <button type="button" class="filter-button primary" @onclick="AddSourceAsync" disabled="@_isAddingSource">
-                @(_isAddingSource ? "Adding..." : "Add source")
-            </button>
-        </div>
-    </section>
+    @if (_controlsCollapsed && Session.Sources.Count > 0)
+    {
+        <section class="controls-summary">
+            <span>@Session.Sources.Count source(s) ready</span>
+            @if (!string.IsNullOrWhiteSpace(activeFilterSummary))
+            {
+                <span>@activeFilterSummary</span>
+            }
+        </section>
+    }
 
     @if (_sourceErrors.Count > 0)
     {
@@ -74,6 +68,36 @@
             {
                 <p>@error</p>
             }
+        </section>
+    }
+
+    @if (showControls)
+    {
+        <section class="source-entry-strip">
+            <div class="source-entry-copy">
+                <p class="eyebrow">Add Source</p>
+                <strong>Bring more logs onto the bench without restarting `serve`.</strong>
+            </div>
+
+            <label class="filter-field">
+                <span>Type</span>
+                <select @bind="_sourceKind">
+                    <option value="File">File</option>
+                    <option value="Glob">Glob</option>
+                    <option value="Rolling">Rolling directory</option>
+                </select>
+            </label>
+
+            <label class="filter-field source-entry-path">
+                <span>Path</span>
+                <input @bind="_sourceInput" placeholder="sample-logs/web-01.json" />
+            </label>
+
+            <div class="filter-actions source-entry-actions">
+                <button type="button" class="filter-button primary" @onclick="AddSourceAsync" disabled="@_isAddingSource">
+                    @(_isAddingSource ? "Adding..." : "Add source")
+                </button>
+            </div>
         </section>
     }
 
@@ -87,52 +111,58 @@
 
     @if (Session.Sources.Count > 0)
     {
-        <section class="source-strip">
-            @foreach (var source in Session.Sources)
-            {
-                <article class="source-card">
-                    <span class="source-kind">@source.Kind</span>
-                    <strong>@source.DisplayName</strong>
-                    <span class="source-path">@source.Path</span>
-                </article>
-            }
-        </section>
+        @if (showControls)
+        {
+            <section class="source-strip">
+                @foreach (var source in Session.Sources)
+                {
+                    <article class="source-card" style="@GetSourceStyle(source.Path)">
+                        <div class="source-card-header">
+                            <span class="source-swatch"></span>
+                            <span class="source-kind">@source.Kind</span>
+                        </div>
+                        <strong>@source.DisplayName</strong>
+                        <span class="source-path">@source.Path</span>
+                    </article>
+                }
+            </section>
 
-        <section class="filter-strip">
-            <label class="filter-field">
-                <span>Text</span>
-                <input @bind="_draftText" placeholder="message, exception, or raw" />
-            </label>
+            <section class="filter-strip">
+                <label class="filter-field">
+                    <span>Text</span>
+                    <input @bind="_draftText" placeholder="message, exception, or raw" />
+                </label>
 
-            <label class="filter-field">
-                <span>Property</span>
-                <input @bind="_draftPropertyName" placeholder="MachineName" />
-            </label>
+                <label class="filter-field">
+                    <span>Property</span>
+                    <input @bind="_draftPropertyName" placeholder="MachineName" />
+                </label>
 
-            <label class="filter-field">
-                <span>Value</span>
-                <input @bind="_draftPropertyValue" placeholder="web-01" />
-            </label>
+                <label class="filter-field">
+                    <span>Value</span>
+                    <input @bind="_draftPropertyValue" placeholder="web-01" />
+                </label>
 
-            <label class="filter-field">
-                <span>Source</span>
-                <select @bind="_draftSource">
-                    <option value="">All sources</option>
-                    @foreach (var source in Session.Sources)
-                    {
-                        <option value="@source.DisplayName">@source.DisplayName</option>
-                    }
-                </select>
-            </label>
+                <label class="filter-field">
+                    <span>Source</span>
+                    <select @bind="_draftSource">
+                        <option value="">All sources</option>
+                        @foreach (var source in Session.Sources)
+                        {
+                            <option value="@source.DisplayName">@source.DisplayName</option>
+                        }
+                    </select>
+                </label>
 
-            <label class="filter-field">
-                <span>Filters</span>
-                <div class="filter-actions">
-                    <button type="button" class="filter-button primary" @onclick="ApplyFilters">Apply</button>
-                    <button type="button" class="filter-button" @onclick="ClearFilters">Clear</button>
-                </div>
-            </label>
-        </section>
+                <label class="filter-field">
+                    <span>Filters</span>
+                    <div class="filter-actions">
+                        <button type="button" class="filter-button primary" @onclick="ApplyFilters">Apply</button>
+                        <button type="button" class="filter-button" @onclick="ClearFilters">Clear</button>
+                    </div>
+                </label>
+            </section>
+        }
 
         @if (events.Count == 0)
         {
@@ -182,6 +212,7 @@
                         {
                             <button type="button"
                                     class="timeline-event @(ReferenceEquals(logEvent, selectedEvent) ? "selected" : null)"
+                                    style="@GetSourceStyle(logEvent.SourcePath)"
                                     @onclick="() => SelectEvent(logEvent)">
                                 <span class="timestamp">@logEvent.Timestamp.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)</span>
                                 <span class="level @GetLevelClass(logEvent.Level)">@logEvent.Level</span>
@@ -191,7 +222,9 @@
                         }
                     </section>
 
-                    <aside class="inspector-shell">
+                    <aside class="inspector-shell @(selectedEvent is not null && _isInspectorModalOpen ? "modal-open" : null)">
+                        <button type="button" class="inspector-backdrop" @onclick="CloseInspector">Close details</button>
+
                         @if (selectedEvent is null)
                         {
                             <section class="status-panel inspector-empty">
@@ -203,7 +236,10 @@
                         {
                             <section class="inspector-panel">
                                 <header class="inspector-header">
-                                    <span class="level @GetLevelClass(selectedEvent.Level)">@selectedEvent.Level</span>
+                                    <div class="inspector-title-row">
+                                        <span class="level @GetLevelClass(selectedEvent.Level)">@selectedEvent.Level</span>
+                                        <button type="button" class="inspector-close" @onclick="CloseInspector">Close</button>
+                                    </div>
                                     <strong>@selectedEvent.Message</strong>
                                 </header>
 
@@ -278,6 +314,8 @@
     private string _sourceKind = "File";
     private string _sourceInput = string.Empty;
     private bool _isAddingSource;
+    private bool _controlsCollapsed;
+    private bool _isInspectorModalOpen;
     private LogEventRecord? _selectedEvent;
     private static readonly string[] AllLevels = ["Verbose", "Debug", "Information", "Warning", "Error", "Fatal"];
 
@@ -306,6 +344,7 @@
         _appliedPropertyValue = string.Empty;
         _appliedSource = string.Empty;
         _hiddenLevels.Clear();
+        _isInspectorModalOpen = false;
         _selectedEvent = null;
     }
 
@@ -315,6 +354,7 @@
         _draftPropertyValue = value;
         _appliedPropertyName = name;
         _appliedPropertyValue = value;
+        _isInspectorModalOpen = false;
         _selectedEvent = null;
     }
 
@@ -351,7 +391,15 @@
         }
     }
 
-    private void SelectEvent(LogEventRecord logEvent) => _selectedEvent = logEvent;
+    private void SelectEvent(LogEventRecord logEvent)
+    {
+        _selectedEvent = logEvent;
+        _isInspectorModalOpen = true;
+    }
+
+    private void CloseInspector() => _isInspectorModalOpen = false;
+
+    private void ToggleControls() => _controlsCollapsed = !_controlsCollapsed;
 
     private void ToggleLevel(string level)
     {
@@ -365,6 +413,7 @@
     {
         if (events.Count == 0)
         {
+            _isInspectorModalOpen = false;
             _selectedEvent = null;
             return null;
         }
@@ -374,7 +423,7 @@
             return _selectedEvent;
         }
 
-        _selectedEvent = events[^1];
+        _selectedEvent = events[0];
         return _selectedEvent;
     }
 
@@ -446,6 +495,58 @@
         }
 
         return counts;
+    }
+
+    private string GetActiveFilterSummary()
+    {
+        List<string> filters = [];
+
+        if (!string.IsNullOrWhiteSpace(_appliedText))
+        {
+            filters.Add($"text: {_appliedText}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_appliedPropertyName) || !string.IsNullOrWhiteSpace(_appliedPropertyValue))
+        {
+            filters.Add($"property: {_appliedPropertyName}={_appliedPropertyValue}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_appliedSource))
+        {
+            filters.Add($"source: {_appliedSource}");
+        }
+
+        if (_hiddenLevels.Count > 0)
+        {
+            filters.Add($"levels hidden: {string.Join(", ", _hiddenLevels.OrderBy(level => level, StringComparer.OrdinalIgnoreCase))}");
+        }
+
+        return filters.Count == 0
+            ? "No active filters"
+            : string.Join(" | ", filters);
+    }
+
+    private string GetPageClass() => _controlsCollapsed ? "controls-collapsed" : string.Empty;
+
+    private static string GetSourceStyle(string key)
+    {
+        var hue = Math.Abs(GetStableHashCode(key)) % 360;
+        return $"--source-accent: hsl({hue}, 72%, 62%); --source-tint: hsla({hue}, 72%, 58%, 0.10);";
+    }
+
+    private static int GetStableHashCode(string value)
+    {
+        unchecked
+        {
+            var hash = 23;
+
+            foreach (var character in value)
+            {
+                hash = (hash * 31) + char.ToUpperInvariant(character);
+            }
+
+            return hash;
+        }
     }
 
     private bool IsLevelVisible(string level) => !_hiddenLevels.Contains(level);

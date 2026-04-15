@@ -1,5 +1,6 @@
-using System.Text.Json;
 using Lathe.Core.Domain;
+using System.Text;
+using System.Text.Json;
 
 namespace Lathe.Core.Infrastructure.Logs;
 
@@ -33,11 +34,7 @@ public sealed class JsonLogEventParser
                 ? levelProperty.GetString() ?? "Information"
                 : "Information";
 
-            var message = root.TryGetProperty("@m", out var renderedMessage)
-                ? renderedMessage.GetString()
-                : root.TryGetProperty("@mt", out var template)
-                    ? template.GetString()
-                    : null;
+            var message = ReadMessage(root);
 
             logEvent = new LogEventRecord(
                 timestamp,
@@ -77,4 +74,93 @@ public sealed class JsonLogEventParser
 
         return properties;
     }
+
+    private static string? ReadMessage(JsonElement root)
+    {
+        if (root.TryGetProperty("@m", out var renderedMessage))
+        {
+            return renderedMessage.GetString();
+        }
+
+        if (!root.TryGetProperty("@mt", out var template))
+        {
+            return null;
+        }
+
+        var value = template.GetString();
+        return string.IsNullOrWhiteSpace(value)
+            ? value
+            : RenderMessageTemplate(value, root);
+    }
+
+    private static string RenderMessageTemplate(string template, JsonElement root)
+    {
+        var builder = new StringBuilder(template.Length + 32);
+
+        for (var index = 0; index < template.Length; index++)
+        {
+            var current = template[index];
+
+            if (current == '{')
+            {
+                if (index + 1 < template.Length && template[index + 1] == '{')
+                {
+                    builder.Append('{');
+                    index++;
+                    continue;
+                }
+
+                var end = template.IndexOf('}', index + 1);
+                if (end < 0)
+                {
+                    builder.Append(current);
+                    continue;
+                }
+
+                var token = template[(index + 1)..end];
+                builder.Append(RenderToken(token, root, template[index..(end + 1)]));
+                index = end;
+                continue;
+            }
+
+            if (current == '}' && index + 1 < template.Length && template[index + 1] == '}')
+            {
+                builder.Append('}');
+                index++;
+                continue;
+            }
+
+            builder.Append(current);
+        }
+
+        return builder.ToString();
+    }
+
+    private static string RenderToken(string token, JsonElement root, string fallback)
+    {
+        var propertyName = GetPropertyName(token);
+        return root.TryGetProperty(propertyName, out var value)
+            ? FormatPropertyValue(value)
+            : fallback;
+    }
+
+    private static string GetPropertyName(string token)
+    {
+        var span = token.AsSpan().Trim();
+
+        if (span.Length > 0 && (span[0] == '@' || span[0] == '$'))
+        {
+            span = span[1..];
+        }
+
+        var end = span.IndexOfAny(',', ':');
+        return end >= 0
+            ? span[..end].Trim().ToString()
+            : span.ToString();
+    }
+
+    private static string FormatPropertyValue(JsonElement value) =>
+        value.ValueKind == JsonValueKind.String
+            ? value.GetString() ?? string.Empty
+            : value.GetRawText();
 }
