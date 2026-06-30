@@ -18,6 +18,7 @@
         var selectedEvent = GetSelectedEvent(filteredEvents);
         var showControls = !_controlsCollapsed || Session.Sources.Count == 0;
         var activeFilterSummary = GetActiveFilterSummary();
+        var sourceStyles = SourceColorStyleLookup.Create(Session.Sources);
     }
 
     <header class="masthead">
@@ -116,7 +117,7 @@
             <section class="source-strip">
                 @foreach (var source in Session.Sources)
                 {
-                    <article class="source-card" style="@GetSourceStyle(source.Path)">
+                    <article class="source-card" style="@sourceStyles.GetStyle(source)">
                         <div class="source-card-header">
                             <span class="source-swatch"></span>
                             <span class="source-kind">@source.Kind</span>
@@ -212,7 +213,7 @@
                         {
                             <button type="button"
                                     class="timeline-event @(ReferenceEquals(logEvent, selectedEvent) ? "selected" : null)"
-                                    style="@GetSourceStyle(logEvent.SourcePath)"
+                                    style="@sourceStyles.GetStyle(logEvent)"
                                     @onclick="() => SelectEvent(logEvent)">
                                 <span class="timestamp">@logEvent.Timestamp.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss.fff", CultureInfo.InvariantCulture)</span>
                                 <span class="level @GetLevelClass(logEvent.Level)">@logEvent.Level</span>
@@ -527,27 +528,6 @@
     }
 
     private string GetPageClass() => _controlsCollapsed ? "controls-collapsed" : string.Empty;
-
-    private static string GetSourceStyle(string key)
-    {
-        var hue = Math.Abs(GetStableHashCode(key)) % 360;
-        return $"--source-accent: hsl({hue}, 72%, 62%); --source-tint: hsla({hue}, 72%, 58%, 0.10);";
-    }
-
-    private static int GetStableHashCode(string value)
-    {
-        unchecked
-        {
-            var hash = 23;
-
-            foreach (var character in value)
-            {
-                hash = (hash * 31) + char.ToUpperInvariant(character);
-            }
-
-            return hash;
-        }
-    }
 
     private bool IsLevelVisible(string level) => !_hiddenLevels.Contains(level);
 
