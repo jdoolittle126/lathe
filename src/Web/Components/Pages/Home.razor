@@ -10,7 +10,9 @@
 
 <div class="page @GetPageClass()">
     @{
-        var events = Session.Events;
+        var sessionEvents = Session.Events;
+        var events = _pauseState.GetVisibleEvents(sessionEvents);
+        var waitingEventCount = _pauseState.GetWaitingEventCount(sessionEvents);
         var levelCounts = CountLevels(FilterWithoutLevelToggles(events));
         var filteredEvents = ApplyLevelToggles(FilterWithoutLevelToggles(events))
             .OrderByDescending(logEvent => logEvent.Timestamp)
@@ -33,12 +35,22 @@
                 <span>@events.Count event(s)</span>
                 <span>Loaded @Session.LoadedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
                 <span>Updated @Session.LastUpdatedAt.LocalDateTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</span>
-                <span class="live-pill">Live</span>
+                <span class="@(_pauseState.IsPaused ? "paused-pill" : "live-pill")">@(_pauseState.IsPaused ? "Paused" : "Live")</span>
+                @if (_pauseState.IsPaused && waitingEventCount > 0)
+                {
+                    <span>@waitingEventCount new event(s) waiting</span>
+                }
             </div>
 
-            <button type="button" class="filter-button" @onclick="ToggleControls">
-                @(_controlsCollapsed ? "Show controls" : "Hide controls")
-            </button>
+            <div class="masthead-button-row">
+                <button type="button" class="filter-button primary" aria-pressed="@_pauseState.IsPaused" @onclick="TogglePause">
+                    @(_pauseState.IsPaused ? "Resume" : "Pause")
+                </button>
+
+                <button type="button" class="filter-button" @onclick="ToggleControls">
+                    @(_controlsCollapsed ? "Show controls" : "Hide controls")
+                </button>
+            </div>
         </div>
     </header>
 
@@ -312,6 +324,7 @@
     private string _appliedSource = string.Empty;
     private readonly HashSet<string> _hiddenLevels = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<string> _sourceErrors = [];
+    private readonly LogPauseState _pauseState = new();
     private string _sourceKind = "File";
     private string _sourceInput = string.Empty;
     private bool _isAddingSource;
@@ -401,6 +414,8 @@
     private void CloseInspector() => _isInspectorModalOpen = false;
 
     private void ToggleControls() => _controlsCollapsed = !_controlsCollapsed;
+
+    private void TogglePause() => _pauseState.Toggle(Session.Events);
 
     private void ToggleLevel(string level)
     {
