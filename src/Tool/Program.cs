@@ -18,6 +18,7 @@ internal static class Program
         builder.Services.AddSingleton<TailCommand>();
         builder.Services.AddSingleton<ServeCommand>();
         builder.Services.AddSingleton<UiCommand>();
+        builder.Services.AddSingleton<DesktopWorkbenchLauncher>();
         builder.Services.AddSingleton<WebWorkbenchRunner>();
         builder.Services.AddSingleton<TailRenderer>();
 
@@ -36,7 +37,7 @@ internal static class Program
                 .WithDescription("Host the local Lathe web UI for one or more sources.");
 
             config.AddCommand<UiCommand>("ui")
-                .WithDescription("Open the local Lathe web UI for one or more sources.");
+                .WithDescription("Open the Lathe desktop UI for one or more sources.");
         });
 
         return await app.RunAsync(args);

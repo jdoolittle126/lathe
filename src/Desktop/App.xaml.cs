@@ -8,7 +8,21 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        var window = new MainWindow();
+        var parseResult = DesktopLaunchOptions.Parse(e.Args);
+
+        if (parseResult.Options is null)
+        {
+            MessageBox.Show(
+                string.Join(Environment.NewLine, parseResult.Errors),
+                "Lathe",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            Shutdown(1);
+            return;
+        }
+
+        var window = new MainWindow(parseResult.Options);
         window.Show();
     }
 }

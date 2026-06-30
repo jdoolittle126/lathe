@@ -7,21 +7,22 @@ using Lathe.Core.Features.Tailing;
 using Lathe.Core.Infrastructure.Logs;
 using Lathe.Web;
 using Lathe.Web.Features.Session;
-using Microsoft.AspNetCore.Builder;
 
 namespace Lathe.Desktop;
 
 public partial class MainWindow : Window
 {
-    private const int InitialEventCount = 500;
-
+    private readonly DesktopLaunchOptions _options;
     private readonly CancellationTokenSource _applicationCancellation = new();
-    private readonly LatheSessionState _session = new([], [], DateTimeOffset.UtcNow, InitialEventCount);
+    private readonly LatheSessionState _session;
     private Microsoft.AspNetCore.Builder.WebApplication? _webApplication;
-    private DesktopSessionController? _sessionController;
+    private LiveLatheSessionController? _sessionController;
 
-    public MainWindow()
+    public MainWindow(DesktopLaunchOptions options)
     {
+        _options = options;
+        _session = new LatheSessionState([], [], DateTimeOffset.UtcNow, options.Count);
+
         InitializeComponent();
     }
 
@@ -31,21 +32,22 @@ public partial class MainWindow : Window
         {
             var sourceResolver = new SourceResolver();
             var tailService = new TailService(new JsonLogEventParser());
-            _sessionController = new DesktopSessionController(
+            _sessionController = new LiveLatheSessionController(
                 sourceResolver,
                 tailService,
                 _session,
                 Environment.CurrentDirectory,
-                InitialEventCount,
+                _options.Count,
                 _applicationCancellation.Token);
 
+            var startupStatus = await LoadInitialInputsAsync();
             var url = $"http://localhost:{GetOpenPort()}";
             _webApplication = LatheWebApplication.Build([], new LatheWebApplicationOptions(url, _session, _sessionController));
             await _webApplication.StartAsync(_applicationCancellation.Token);
 
             await Browser.EnsureCoreWebView2Async();
             Browser.Source = new Uri(url);
-            SetStatus("Drop log files anywhere in this window to add them.");
+            SetStatus(startupStatus);
         }
         catch (Exception ex)
         {
@@ -101,6 +103,27 @@ public partial class MainWindow : Window
     }
 
     private void SetStatus(string message) => StatusText.Text = message;
+
+    private async Task<string> LoadInitialInputsAsync()
+    {
+        if (!_options.HasInputs || _sessionController is null)
+        {
+            return "Drop log files anywhere in this window to add them.";
+        }
+
+        var errors = await _sessionController.AddInputsAsync(
+            _options.Files,
+            _options.Globs,
+            _options.RollingDirectories,
+            _applicationCancellation.Token);
+
+        if (errors.Count > 0)
+        {
+            return string.Join(Environment.NewLine, errors);
+        }
+
+        return $"Loaded {_session.Sources.Count} source(s). Drop more log files anywhere in this window.";
+    }
 
     private static int GetOpenPort()
     {

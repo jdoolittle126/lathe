@@ -1,11 +1,10 @@
 using Lathe.Core.Domain;
 using Lathe.Core.Features.Sources;
 using Lathe.Core.Features.Tailing;
-using Lathe.Web.Features.Session;
 
-namespace Lathe.Tool.Features.Serve;
+namespace Lathe.Web.Features.Session;
 
-public sealed class ServeSessionController(
+public sealed class LiveLatheSessionController(
     SourceResolver sourceResolver,
     TailService tailService,
     LatheSessionState session,
@@ -24,6 +23,8 @@ public sealed class ServeSessionController(
     {
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             var request = new ResolveSourcesRequest(workingDirectory, files, globs, rollingDirectories);
             var resolved = sourceResolver.Resolve(request);
             var addedSources = session.TryAddSources(resolved);
@@ -33,11 +34,12 @@ public sealed class ServeSessionController(
                 return ["All resolved sources are already loaded."];
             }
 
-            using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, applicationCancellationToken);
-            var result = await tailService.StartAsync(new TailRequest(addedSources, count, true), linkedCancellation.Token);
+            var result = await tailService.StartAsync(
+                new TailRequest(addedSources, count, true),
+                applicationCancellationToken);
 
             session.AppendRange(result.InitialEvents);
-            _ = PumpLiveEventsAsync(result.LiveEvents, linkedCancellation.Token);
+            _ = PumpLiveEventsAsync(result.LiveEvents, applicationCancellationToken);
 
             return [];
         }

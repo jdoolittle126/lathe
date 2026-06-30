@@ -14,6 +14,7 @@
     <RepositoryUrl>https://github.com/jdoolittle126/lathe</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackDesktopWorkbench</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -36,5 +37,22 @@
     <Content Include="$(PkgMicrosoft_AspNetCore_App_Internal_Assets)\_framework\blazor.web.js" Link="wwwroot\_framework\blazor.web.js" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\Web\Components\**\*.razor.js" Link="wwwroot\Components\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="PackDesktopWorkbench">
+    <PropertyGroup>
+      <DesktopWorkbenchPublishDir>$(MSBuildProjectDirectory)\obj\$(Configuration)\$(TargetFramework)\desktop-publish\</DesktopWorkbenchPublishDir>
+    </PropertyGroup>
+
+    <MSBuild
+      Projects="..\Desktop\Desktop.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;PublishDir=$(DesktopWorkbenchPublishDir);SelfContained=false;UseAppHost=true" />
+
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(DesktopWorkbenchPublishDir)**\*">
+        <PackagePath>tools\$(TargetFramework)\any\desktop\%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 
 </Project>

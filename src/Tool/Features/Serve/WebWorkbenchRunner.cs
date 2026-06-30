@@ -31,7 +31,7 @@ public sealed class WebWorkbenchRunner(SourceResolver sourceResolver, TailServic
             using var commandCancellation = ConsoleCancellation.Create(cancellationToken);
             var url = $"http://localhost:{GetOpenPort()}";
             var session = new LatheSessionState([], [], DateTimeOffset.UtcNow, count);
-            var controller = new ServeSessionController(
+            var controller = new LiveLatheSessionController(
                 sourceResolver,
                 tailService,
                 session,
