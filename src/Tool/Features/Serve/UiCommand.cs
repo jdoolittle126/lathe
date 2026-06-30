@@ -11,6 +11,6 @@ public sealed class UiCommand(WebWorkbenchRunner workbenchRunner)
             settings.Globs,
             settings.RollingDirectories,
             settings.Count,
-            openBrowser: true,
+            true,
             cancellationToken);
 }
