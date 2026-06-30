@@ -1,0 +1,33 @@
+<Window x:Class="Lathe.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Lathe"
+        Width="1440"
+        Height="900"
+        MinWidth="900"
+        MinHeight="600"
+        Background="#11161d"
+        AllowDrop="True"
+        DragOver="OnDragOver"
+        Drop="OnDrop"
+        Loaded="OnLoaded"
+        Closing="OnClosing">
+    <Grid>
+        <wv2:WebView2 x:Name="Browser" />
+        <Border x:Name="StatusOverlay"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="16"
+                Padding="12,8"
+                Background="#DD161D26"
+                BorderBrush="#314255"
+                BorderThickness="1"
+                CornerRadius="10">
+            <TextBlock x:Name="StatusText"
+                       Foreground="#D8E0EB"
+                       FontFamily="Segoe UI"
+                       Text="Starting Lathe..." />
+        </Border>
+    </Grid>
+</Window>
