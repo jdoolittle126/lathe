@@ -2,7 +2,7 @@ using Spectre.Console.Cli;
 
 namespace Lathe.Tool.Features.Serve;
 
-public class WebWorkbenchCommandSettings : CommandSettings
+public abstract class WebWorkbenchCommandSettings : CommandSettings
 {
     [CommandOption("--file <PATH>")]
     public string[] Files { get; init; } = [];
