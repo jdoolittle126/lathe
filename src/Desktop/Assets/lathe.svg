@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Lathe app icon">
+  <defs>
+    <linearGradient id="tile" x1="32" x2="224" y1="24" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#182330" />
+      <stop offset="1" stop-color="#0b1017" />
+    </linearGradient>
+    <linearGradient id="page" x1="74" x2="184" y1="45" y2="212" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f8fbff" />
+      <stop offset="1" stop-color="#cbd6e2" />
+    </linearGradient>
+    <linearGradient id="fold" x1="165" x2="201" y1="49" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#dce6f1" />
+      <stop offset="1" stop-color="#9fb0c3" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#tile)" />
+  <path d="M74 39h92l42 42v136H74z" fill="#071018" opacity=".35" transform="translate(0 5)" />
+  <path d="M66 34h98l44 44v139H66z" fill="url(#page)" />
+  <path d="M164 34v44h44z" fill="url(#fold)" />
+  <path d="M164 78h44l-44-44z" fill="#071018" opacity=".08" />
+  <path d="M84 105h81" fill="none" stroke="#26384a" stroke-width="12" stroke-linecap="round" />
+  <path d="M84 132h108" fill="none" stroke="#1fb6ff" stroke-width="12" stroke-linecap="round" />
+  <path d="M84 159h89" fill="none" stroke="#54f0c2" stroke-width="12" stroke-linecap="round" />
+  <path d="M84 186h61" fill="none" stroke="#26384a" stroke-width="12" stroke-linecap="round" />
+</svg>
