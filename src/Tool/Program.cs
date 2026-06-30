@@ -17,6 +17,8 @@ internal static class Program
         builder.Services.AddCoreServices();
         builder.Services.AddSingleton<TailCommand>();
         builder.Services.AddSingleton<ServeCommand>();
+        builder.Services.AddSingleton<UiCommand>();
+        builder.Services.AddSingleton<WebWorkbenchRunner>();
         builder.Services.AddSingleton<TailRenderer>();
 
         var registrar = new TypeRegistrar(builder.Services);
@@ -32,6 +34,9 @@ internal static class Program
 
             config.AddCommand<ServeCommand>("serve")
                 .WithDescription("Host the local Lathe web UI for one or more sources.");
+
+            config.AddCommand<UiCommand>("ui")
+                .WithDescription("Open the local Lathe web UI for one or more sources.");
         });
 
         return await app.RunAsync(args);
