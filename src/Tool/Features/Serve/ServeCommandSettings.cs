@@ -15,4 +15,7 @@ public sealed class ServeCommandSettings : CommandSettings
 
     [CommandOption("-n|--count <COUNT>")]
     public int Count { get; init; } = 100;
+
+    [CommandOption("--open")]
+    public bool Open { get; init; }
 }
