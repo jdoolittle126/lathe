@@ -6,7 +6,6 @@ using Lathe.Core.Features.Tailing;
 using Lathe.Tool.Infrastructure;
 using Lathe.Web;
 using Lathe.Web.Features.Session;
-using Microsoft.AspNetCore.Builder;
 using Spectre.Console;
 
 namespace Lathe.Tool.Features.Serve;
