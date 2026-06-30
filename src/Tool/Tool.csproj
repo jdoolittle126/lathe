@@ -45,8 +45,15 @@
 
     <MSBuild
       Projects="..\Desktop\Desktop.csproj"
+      Targets="Restore"
+      Properties="Configuration=$(Configuration)"
+      RemoveProperties="NoBuild;NoRestore;BuildProjectReferences;TargetFramework" />
+
+    <MSBuild
+      Projects="..\Desktop\Desktop.csproj"
       Targets="Publish"
-      Properties="Configuration=$(Configuration);TargetFramework=net10.0-windows;PublishDir=$(DesktopWorkbenchPublishDir);SelfContained=false;UseAppHost=true" />
+      Properties="Configuration=$(Configuration);PublishDir=$(DesktopWorkbenchPublishDir);SelfContained=false;UseAppHost=true"
+      RemoveProperties="NoBuild;NoRestore;BuildProjectReferences;TargetFramework" />
 
     <ItemGroup>
       <TfmSpecificPackageFile Include="$(DesktopWorkbenchPublishDir)**\*">
